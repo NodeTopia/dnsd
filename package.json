@@ -1,19 +1,41 @@
-{ "name": "dnsd"
-, "description": "Dynamic authoritative name server for Iris services"
-
-, "keywords": [ "dns", "bind", "dnsd", "iris" ]
-, "version": "0.9.5"
-, "author": "Jason Smith <jhs@iriscouch.com> (http://www.iriscouch.com)"
-, "repository": { "type":"git", "url":"https://github.com/iriscouch/dnsd" }
-
-, "engines": { "node": ">= 0.8" }
-, "main": "./named.js"
-
-, "dependencies": { "optimist": "~0.3.4"
-                  , "defaultable": "~0.7.2"
-                  }
-
-, "devDependencies": { "tap": "~0.2.5"
-                     }
-, "scripts": { "test": "tap test/*.js" }
+{
+  "name": "dnsd-name",
+  "description": "Dynamic authoritative name server for Iris services",
+  "keywords": [
+    "dns",
+    "bind",
+    "dnsd",
+    "iris"
+  ],
+  "version": "0.9.5",
+  "author": "Jason Smith <jhs@iriscouch.com> (http://www.iriscouch.com)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iriscouch/dnsd"
+  },
+  "engines": {
+    "node": ">= 0.8"
+  },
+  "bin": {
+    "dnsd": "./bin/nameserver.js"
+  },
+  "main": "./named.js",
+  "dependencies": {
+    "async": "^2.6.0",
+    "commander": "2.2.0",
+    "defaultable": "~0.7.2",
+    "lru-cache": "^4.1.3",
+    "native-dns-nameserver": "^0.7.0",
+    "native-dns-packet": "^0.1.1",
+    "optimist": "~0.3.4",
+    "raft-logger-redis": "^0.2.16",
+    "redis": "^2.8.0",
+    "tldjs": "^2.3.1"
+  },
+  "devDependencies": {
+    "tap": "~0.2.5"
+  },
+  "scripts": {
+    "test": "tap test/*.js"
+  }
 }
