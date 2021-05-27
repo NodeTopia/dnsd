@@ -19,6 +19,7 @@ class Nameserver {
     }
 
     async handler(req, res) {
+        let start = Date.now();
         let self = this;
         let question = req.question[0];
 
@@ -26,20 +27,20 @@ class Nameserver {
             q.name = q.name.toLowerCase()
         })
 
-        let {name, type} = question;
+        let { name, type } = question;
 
         if (this[type]) {
             try {
                 await this[type](req, res)
             } catch (err) {
-                console.log(err)
+                console.log('handler', err)
             }
         } else {
 
             try {
                 await this.handleAll(req, res)
             } catch (err) {
-                console.log(err)
+                console.log('handler', err)
 
             }
         }
@@ -48,8 +49,8 @@ class Nameserver {
 
 
         req.question.forEach(function (q) {
-            self.console.log('%s:%s/%s %s %s %j %j', req.connection.remoteAddress, req.connection.remotePort, req.connection.type, q.name, q.type, res.answer, res.additional)
-
+            //self.console.log('%s:%s/%s %s %s %j %j', req.connection.remoteAddress, req.connection.remotePort, req.connection.type, q.name, q.type, res.answer, res.additional)
+            self.console.log('%s:%s/%s %s %s', req.connection.remoteAddress, req.connection.remotePort, req.connection.type, q.name, q.type, res.answer.length, res.additional.length, Date.now() - start)
         })
 
 
@@ -77,7 +78,7 @@ class Nameserver {
     AAAA(req, res) {
         let self = this;
         let question = req.question[0];
-        let {name} = question;
+        let { name } = question;
         return new Promise(async function (resolve, reject) {
 
 
@@ -105,7 +106,7 @@ class Nameserver {
     MX(req, res) {
         let self = this;
         let question = req.question[0];
-        let {name} = question;
+        let { name } = question;
         return new Promise(async function (resolve, reject) {
 
 
@@ -133,7 +134,7 @@ class Nameserver {
     SOA(req, res) {
         let self = this;
         let question = req.question[0];
-        let {name} = question;
+        let { name } = question;
         return new Promise(async function (resolve, reject) {
 
 
@@ -163,7 +164,7 @@ class Nameserver {
     NS(req, res) {
         let self = this;
         let question = req.question[0];
-        let {name} = question;
+        let { name } = question;
         return new Promise(async function (resolve, reject) {
 
 
@@ -196,7 +197,7 @@ class Nameserver {
                             res.additional.push({
                                 type: 'AAAA',
                                 name: record.name,
-                                data: self.expandIPv6Address(record.data),
+                                data: Nameserver.expandIPv6Address(record.data),
                                 ttl: record.ttl
                             });
                         } else {
@@ -216,7 +217,7 @@ class Nameserver {
         });
     }
 
-   static expandIPv6Address(address) {
+    static expandIPv6Address(address) {
         var fullAddress = "";
         var expandedAddress = "";
         var validGroupCount = 8;

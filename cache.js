@@ -6,8 +6,11 @@ const url = require('url');
 const factory = require('./redis');
 const async = require('async');
 const tld = require('tldjs');
-
-
+const dns = require('dns').promises;
+dns.setServers([
+    '8.8.8.8',
+    '1.1.1.1'
+]);
 const LruCache = require('./lru');
 const to = require('./to');
 
@@ -15,6 +18,8 @@ const to = require('./to');
 class Cache {
     constructor(config, options) {
         this.config = config;
+
+        this.proxy = options.proxy;
 
         this.log = function (msg) {
             if (options.logHandler)
@@ -62,18 +67,94 @@ class Cache {
         return result;
     }
 
+
+    getProxyLookup(hostKey, type, explicit = false) {
+        let self = this;
+
+        return new Promise(async function (resolve, reject) {
+            let [err, backends] = await to(dns.resolve(hostKey, type == '*' ? 'ANY' : type));
+
+
+            if (err) {
+                console.log('getProxyLookup error')
+
+                if (err.code == 'ENODATA') {
+                    return resolve([]);
+                }
+
+                return reject(err);
+            }
+
+            let results = [];
+            switch (type) {
+                case 'A':
+                case 'AAAA':
+                case 'CNAME':
+                case 'NS':
+                case 'PTR':
+                    for (let i = 0; i < backends.length; i++) {
+                        let backend = backends[i];
+                        results.push({
+                            type: type,
+                            name: hostKey,
+                            ttl: 60,
+                            data: backend
+                        });
+                    }
+                    break;
+                case 'MX':
+                    for (let i = 0; i < backends.length; i++) {
+                        let backend = backends[i];
+                        results.push({
+                            type: type,
+                            name: hostKey,
+                            ttl: 60,
+                            priority: backend.priority,
+                            data: backend.exchange
+                        });
+                    }
+                    break;
+                case 'SOA':
+                    results.push({
+                        type: type,
+                        "name": backends.nsname,
+                        "ttl": backends.minttl,
+                        "admin": backends.hostmaster,
+                        "serial": backends.serial,
+                        "refresh": backends.refresh,
+                        "retry": backends.retry,
+                        "expiration": backends.expire,
+                        "minimum": backends.minttl
+                    });
+                    break;
+                case 'NAPTR':
+                case 'SRV':
+                default:
+
+            }
+
+            resolve(results)
+        });
+    }
     readFromCache(hostKey, type, explicit = false) {
+
         let self = this;
         let backends = this.lru.get(type + ':' + hostKey);
 
         if (backends) {
-            return Promise.resolve(backends.slice(0));
+            const filtered = backends.filter(backend => backend.priority !== -1);
+
+            if (filtered.length !== 0) {
+                Promise.resolve(filtered.slice(0));
+            } else {
+                Promise.resolve(backends.slice(0));
+            }
         }
         return new Promise(async function (resolve, reject) {
 
 
             // The entry is not in the LRU cache, let's do a request on Redis
-            self.client.read(explicit ? [hostKey] : self.getDomainsLookup(hostKey), type, function (err, rows) {
+            self.client.read(explicit ? [hostKey] : self.getDomainsLookup(hostKey), type, async function (err, rows) {
                 if (err) {
                     return reject(err)
                 }
@@ -85,12 +166,22 @@ class Cache {
                 }
 
                 if (!backends.length) {
-                    return resolve([])
+                    if (self.proxy && hostKey != 'nameserver') {
+                        let [err, backends] = await to(self.getProxyLookup(hostKey, type, explicit));
+
+                        if (err) {
+                            return reject(err);
+                        }
+
+                        self.lru.set(type + ':' + hostKey, backends, (backends[0] && backends[0].ttl * 1000) || 6000);
+                        return resolve(backends);
+                    }
+                    return resolve([]);
                 }
 
 
                 for (var i = 0,
-                         j = backends.length; i < j; i++) {
+                    j = backends.length; i < j; i++) {
                     try {
                         backends[i] = JSON.parse(backends[i])
                     } catch (e) {
@@ -98,13 +189,21 @@ class Cache {
                     }
                 }
 
-                self.lru.set(type + ':' + hostKey, backends, (backends[0] && backends[0].ttl * 1000) || 6000);
-                resolve(backends.slice(0));
+                // self.lru.set(type + ':' + hostKey, backends, (backends[0] && backends[0].ttl * 1000) || 6000);
+
+                const filtered = backends.filter(backend => backend.priority !== -1);
+
+                if (filtered.length !== 0) {
+                    resolve(filtered.slice(0));
+                } else {
+                    resolve(backends.slice(0));
+                }
+
             });
         })
     }
 
-    async getDnsFromHostType(host, type) {
+    getDnsFromHostType(host, type) {
         var self = this;
         return new Promise(async function (resolve, reject) {
 
@@ -126,6 +225,7 @@ class Cache {
             if (err) {
                 return reject(err)
             }
+
             resolve(backends)
         });
     }
@@ -151,6 +251,14 @@ class Cache {
                 if (err) {
                     return reject(err)
                 }
+                if (!nameservers.length) {
+                    [err, nameservers] = await to(self.readFromCache(name, 'NS', true))
+                    if (err) {
+                        return reject(err)
+                    }
+                }
+
+
                 let nameserver = nameservers.shift();
 
                 var soa = {

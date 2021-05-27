@@ -28,6 +28,8 @@ server.option('-t, --tcp', 'Start TCP-Server', false);
 server.option('-u, --udp', 'Start UDP-Server', false);
 server.option('-c, --cluster', 'Start server as cluster', false);
 
+server.option('-L, --proxy', 'Proxy DNS (default: false)', false);
+
 server.option('-l, --logging', 'Start logging (default: false)', false);
 server.option('-v, --log-udp-port [LOG-UDP-PORT]', 'Use PORT (default: 5001)', 5001);
 server.option('-x, --log-tcp-port [LOG-TCP-PORT]', 'Use PORT (default: 5000)', 5000);
@@ -70,10 +72,11 @@ server.action(function (options) {
             bufferSize: 1
         });
     }
-
+    console.log('server.action', options.cluster)
 
     var cache = new (require('../cache'))(redis, {
-        logHandler: logHandler || console
+        logHandler: logHandler || console,
+        proxy:options.proxy
     });
 
     var n = new N(cache, logHandler || console)
@@ -111,6 +114,7 @@ server.action(function (options) {
 
             n.handler(req, res)
         })
+        console.log(options.port, options.addr)
         server.listen(options.port, options.addr)
     }
 

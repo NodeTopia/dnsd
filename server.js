@@ -70,7 +70,7 @@ function Server(handler) {
         self.on_udp(msg, rinfo)
     })
 
-    var listening = {'tcp': false, 'udp': false}
+    var listening = { 'tcp': false, 'udp': false }
     self.udp.once('listening', function () {
         listening.udp = true
         if (listening.tcp)
@@ -120,10 +120,10 @@ Server.prototype.listen = function (port, ip, callback) {
 
     if (typeof callback === 'function')
         self.on('listening', callback)
-
-    self.udp.bind(port,'0.0.0.0')
+    console.log()
+    self.udp.bind(self.port, self.ip)
     //self.udp6.bind(port,'::')
-    self.tcp.listen(port)
+    self.tcp.listen(self.port, self.ip)
 
     return self
 }
